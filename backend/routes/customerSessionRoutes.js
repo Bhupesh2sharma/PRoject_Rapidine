@@ -2,76 +2,72 @@ const express = require('express');
 const router = express.Router();
 const CustomerSession = require('../models/CustomerSession');
 
-// Check if table is available
-router.get('/check/:tableNumber', async (req, res) => {
-  try {
-    const { tableNumber } = req.params;
-    const existingSession = await CustomerSession.findOne({ 
-      tableNumber, 
-      active: true 
-    });
-    
-    res.json({ 
-      isOccupied: !!existingSession,
-      sessionDetails: existingSession ? {
-        customerName: existingSession.customerName,
-        numberOfPeople: existingSession.numberOfPeople,
-        startTime: existingSession.createdAt
-      } : null
-    });
-  } catch (error) {
-    console.error('Table check error:', error);
-    res.status(500).json({ message: 'Error checking table availability' });
-  }
+// Debug log for routes
+router.use((req, res, next) => {
+    console.log(`CustomerSession Route: ${req.method} ${req.url}`);
+    next();
 });
 
-// Create new session
+// Check if table is occupied
+router.get('/check/:tableNumber', async (req, res) => {
+    try {
+        const existingSession = await CustomerSession.findOne({
+            tableNumber: req.params.tableNumber,
+            active: true
+        });
+        
+        res.json({
+            isOccupied: !!existingSession,
+            sessionDetails: existingSession
+        });
+    } catch (error) {
+        console.error('Error checking table:', error);
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// Create new customer session
 router.post('/', async (req, res) => {
-  try {
-    const { tableNumber, customerName, numberOfPeople } = req.body;
+    console.log('Received session creation request:', req.body);
+    
+    try {
+        const { tableNumber, customerName, numberOfPeople } = req.body;
 
-    // Validate inputs
-    if (!tableNumber || !customerName || !numberOfPeople) {
-      return res.status(400).json({ message: 'All fields are required' });
-    }
-
-    // Check for existing active session
-    const existingSession = await CustomerSession.findOne({ 
-      tableNumber, 
-      active: true 
-    });
-
-    if (existingSession) {
-      return res.status(400).json({ 
-        message: 'This table is currently occupied',
-        sessionDetails: {
-          customerName: existingSession.customerName,
-          numberOfPeople: existingSession.numberOfPeople,
-          startTime: existingSession.createdAt
+        // Validate input
+        if (!tableNumber || !customerName || !numberOfPeople) {
+            return res.status(400).json({ 
+                message: 'Missing required fields' 
+            });
         }
-      });
+
+        // Check if table is already occupied
+        const existingSession = await CustomerSession.findOne({
+            tableNumber,
+            active: true
+        });
+
+        if (existingSession) {
+            return res.status(400).json({ 
+                message: 'Table is already occupied' 
+            });
+        }
+
+        // Create new session
+        const session = new CustomerSession({
+            tableNumber,
+            customerName,
+            numberOfPeople,
+            active: true
+        });
+
+        const savedSession = await session.save();
+        console.log('Created new session:', savedSession);
+        
+        res.status(201).json(savedSession);
+    } catch (error) {
+        console.error('Error creating session:', error);
+        res.status(500).json({ message: error.message });
     }
-
-    // Create new session
-    const session = new CustomerSession({
-      tableNumber: tableNumber.trim(),
-      customerName: customerName.trim(),
-      numberOfPeople: parseInt(numberOfPeople),
-      active: true
-    });
-
-    const savedSession = await session.save();
-    console.log('New session created:', savedSession);
-
-    res.status(201).json(savedSession);
-
-  } catch (error) {
-    console.error('Session creation error:', error);
-    res.status(500).json({ 
-      message: 'Error creating session',
-      error: error.message 
-    });
-  }
 });
 
 module.exports = router; 

@@ -37,6 +37,12 @@ app.use((req, res, next) => {
     next();
 });
 
+// Add this before your routes
+app.use((req, res, next) => {
+    console.log(`Incoming request: ${req.method} ${req.url}`);
+    next();
+});
+
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => {
@@ -54,7 +60,16 @@ mongoose.connect(process.env.MONGODB_URI)
 
 // Routes
 const menuRoutes = require('./routes/menuRoutes');
+const customerSessionRoutes = require('./routes/customerSessionRoutes');
+const orderRoutes = require('./routes/orderRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const staffRoutes = require('./routes/staffRoutes');
+
 app.use('/api/menu', menuRoutes);
+app.use('/api/customer-session', customerSessionRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/admin', staffRoutes);
 
 // Error handling
 app.use((err, req, res, next) => {

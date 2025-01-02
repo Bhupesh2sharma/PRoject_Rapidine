@@ -4,6 +4,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Admin = require('../models/Admin');
 const Order = require('../models/Order');
+const MenuItem = require('../models/MenuItem');
+const Staff = require('../models/Staff');
 const auth = require('../middleware/auth');
 
 // Admin login
@@ -64,11 +66,32 @@ router.post('/login', async (req, res) => {
 });
 
 // Get all orders
-router.get('/orders', async (req, res) => {
+router.get('/orders', auth, async (req, res) => {
     try {
-        console.log('Fetching orders...'); // Debug log
-        const orders = await Order.find().sort({ createdAt: -1 });
-        console.log('Found orders:', orders); // Debug log
+        // Add cache control headers
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
+
+        const { date } = req.query;
+        let query = {};
+
+        if (date) {
+            const startDate = new Date(date);
+            startDate.setHours(0, 0, 0, 0);
+            
+            const endDate = new Date(date);
+            endDate.setHours(23, 59, 59, 999);
+
+            query.createdAt = {
+                $gte: startDate,
+                $lte: endDate
+            };
+        }
+
+        const orders = await Order.find(query)
+            .sort({ createdAt: -1 });
+
         res.json(orders);
     } catch (error) {
         console.error('Error fetching orders:', error);
@@ -98,5 +121,47 @@ router.put('/orders/:id', async (req, res) => {
         res.status(500).json({ message: 'Error updating order' });
     }
 });
+
+router.use((req, res, next) => {
+  console.log('Admin Route accessed:', req.method, req.path);
+  next();
+});
+
+router.get('/dashboard-stats', async (req, res) => {
+  console.log('Dashboard stats route hit');
+  try {
+      // Get total orders
+      const totalOrders = await Order.countDocuments();
+      console.log('Total orders:', totalOrders);
+      
+      // Get active orders
+      const activeOrders = await Order.countDocuments({
+          status: { $in: ['pending', 'preparing'] }
+      });
+      console.log('Active orders:', activeOrders);
+
+      // Get total menu items
+      const totalMenuItems = await MenuItem.countDocuments();
+      console.log('Total menu items:', totalMenuItems);
+
+      // Get total staff
+      const totalStaff = await Staff.countDocuments();
+      console.log('Total staff:', totalStaff);
+
+      const stats = {
+          totalOrders,
+          activeOrders,
+          totalMenuItems,
+          totalStaff
+      };
+      
+      console.log('Sending stats:', stats);
+      res.json(stats);
+  } catch (error) {
+      console.error('Dashboard stats error:', error);
+      res.status(500).json({ message: error.message });
+  }
+});
+
 
 module.exports = router; 
